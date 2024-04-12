@@ -125,11 +125,11 @@ def get_actors(g: Graph, res: URIRef, prop=SDO.author, offset=0):
                 name = str(g.value(o, SDO.givenName,None)) + " " + str(g.value(o, SDO.familyName,None))
             url = g.value(o, SDO.url,None)
             yield clean({
-                "actor": {
+                "actor": clean({
                     "name": name,
                     "externalIds": external_ids,
                     "website": str(url) if url else None
-                },
+                }),
                 "role": { 
                     "code": code,
                     "label": label,
@@ -146,9 +146,8 @@ def main():
     args = parser.parse_args()
     attribs = AttribDict({})
 
-    entries = []
     for filename in args.inputfiles:
-        g, contextgraph = init_graph(attribs)
+        g, _ = init_graph(attribs)
         parse_jsonld(g, None, getstream(filename), attribs)
 
         for res,_,_ in g.triples((None,RDF.type, SDO.SoftwareSourceCode)):
