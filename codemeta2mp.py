@@ -139,7 +139,7 @@ def get_actors(g: Graph, res: URIRef, prop=SDO.author, offset=0):
 
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(prog="codemeta2mp", description="Converts codemeta to SSHOC Open Marketplace") 
     parser.add_argument('inputfiles', nargs='+', help="Input files (JSON-LD)", type=str) 
 
@@ -393,3 +393,6 @@ if __name__ == "__main__":
                 "properties": properties,
             }
             json.dump(clean(entry), sys.stdout)
+
+if __name__ == "__main__":
+    main()
