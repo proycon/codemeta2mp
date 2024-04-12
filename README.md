@@ -14,8 +14,10 @@ pip install git+https://github.com/proycon/codemeta2mp.git
 
 ## Usage
 
+If you already have a `codemeta.json` file, just run `codemeta2mp codemeta.json` to get the SSHOC Open Marketplace representation. Otherwise:
+
 1. Find the tool you want to convert on https://tools.clariah.nl/ (e.g. https://tools.clariah.nl/frog
-2. Run this on on it: ``curl --header 'Accept: application/json' https://tools.clariah.nl/frog/ | codemeta2mp -`` to get the SSHO C Open Marketplace representation, optionally pipe through ``jq`` for pretty output.
+2. Run this on on it: ``curl --header 'Accept: application/json' https://tools.clariah.nl/frog/ | codemeta2mp -`` to get the SSHOC Open Marketplace representation, optionally pipe through ``jq`` for pretty output.
 
 
 
