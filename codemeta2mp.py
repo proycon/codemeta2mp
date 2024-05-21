@@ -85,6 +85,7 @@ EMPTY_PROPERTY_CONCEPT = {
 
 class MarketPlaceAPI:
     def __init__(self, baseurl: str, username: Optional[str] = None, password: Optional[str] = None):
+        """Initialize a client connection to the Marketplace API, username and password are required for write access"""
         self.baseurl = baseurl
         if self.baseurl[-1] == "/":
             self.baseurl = self.baseurl[:-1]
@@ -142,7 +143,7 @@ class MarketPlaceAPI:
             "name": name,
             "externalIds": external_ids,
             "website": website if website else "",
-            "email": website if website else "",
+            "email": email if email else "",
             "affiliations": [], # we don't do affiliations in this convertor yet (too messy with changing affiliations and duplicates)
         }
         response = requests.post(f"{self.baseurl}/api/actors", headers={'Content-type': 'application/json', 'accept': 'application/json'}, json=payload)
@@ -157,6 +158,24 @@ class MarketPlaceAPI:
         except requests.exceptions.JSONDecodeError:
             raise
 
+    def get_tool(self, name: str, sourcelabel: str = "") -> Optional[dict]:
+        """Gets the data of tool if it exists"""
+        response = requests.get(f"{self.baseurl}/api/item-search", params={"q": name.strip(), "f": f"f.source={sourcelabel}","categories":"tool-or-service"},headers={'accept': 'application/json'})
+        response.raise_for_status()
+        if response.json()['hits'] == 0:
+            return None
+        elif response.json()['hits'] > 1:
+            #multiple hits, refuse
+            return None
+        return response.json()['items'][0] #grab first match, this may not be accurate
+
+    def add_tool(self, data: dict):
+        response = requests.post(f"{self.baseurl}/api/tools-services", headers={'Content-type': 'application/json', 'accept': 'application/json'}, json=data)
+        response.raise_for_status()
+
+    def update_tool(self, persistent_id: str, data: dict):
+        response = requests.post(f"{self.baseurl}/api/tools-services/" + persistent_id, headers={'Content-type': 'application/json', 'accept': 'application/json'}, json=data)
+        response.raise_for_status()
         
 
 def clean(d: dict) -> dict:
@@ -379,8 +398,8 @@ def main():
                                 "code": "keyword"
                             },
                             "concept": {
-                                "code": str(keyword.lower().replace(" ","+")),
-                                "label": str(keyword),
+                                "code": str(keyword.strip().lower().replace(" ","+")),
+                                "label": str(keyword.strip()),
                                 "vocabulary": {
                                     "code": "sshoc-keyword",
                                 }
@@ -499,7 +518,24 @@ def main():
                 "contributors": actors,
                 "properties": properties,
             }
-            json.dump(clean(entry), sys.stdout)
+
+            existing = api.get_tool(g.value(res, SDO.name, None))
+            if existing:
+                persistent_id = existing['persistentId']
+                lastupdate_mp = existing['lastInfoUpdate']
+                lastmodified_upstream = g.value(res, SDO.dateModified, None)
+                needs_update = False
+                if lastmodified_upstream:
+                    if lastmodified_upstream > lastupdate_mp: #lexographic comparison should work
+                        needs_update = True
+                if needs_update:
+                    api.update_tool(persistent_id, entry)
+                else:
+                    print("Already exists and no update needed",file=sys.stderr)
+            else:
+                api.add_tool(entry)
+
+            #json.dump(entry, sys.stdout)
 
 if __name__ == "__main__":
     main()
