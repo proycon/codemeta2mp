@@ -387,6 +387,12 @@ def main():
                 "description": g.value(res, SDO.description, None),
                 "externalID": external_ids, 
                 "accessibleAt": accessible_at,
+                "source": {
+                    "label": "CLARIAH-NL",
+                    "url": "https://tools.clariah.nl",
+                    "urlTemplate": "https://tools.clariah.nl/{source-item-id}",
+                },
+                "sourceItemId": g.value(res, SDO.identifier, None),
                 "thumbnail": g.value(res,SDO.thumbnailUrl,None),
                 "contributors": actors,
                 "properties": properties,
