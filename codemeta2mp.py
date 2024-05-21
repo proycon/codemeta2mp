@@ -72,6 +72,15 @@ REPOSTATUSMAP_FALLBACK = {
     REPOSTATUS.wip: f"{NS_EOSC_LIFECYCLESTATUS}life_cycle_status-concept",
 }
 
+# from @mkrzmr: You can pass empty values as you need to, the API will just ignore it
+EMPTY_PROPERTY_CONCEPT = {
+    "code": "",
+    "vocabulary": {
+        "code": "",
+    },
+    "uri": "",
+}
+
 def clean(d: dict) -> dict:
    return { k: v for k,v in d.items() if v }
 
@@ -163,6 +172,9 @@ def main():
                         },
                         "concept": {
                             "code": str(license).strip("/").split("/")[-1],
+                            "vocabulary": {
+                                "code": "software-license"
+                            },
                             "uri": str(license),
                         }
                     })
@@ -174,6 +186,9 @@ def main():
                         },
                         "concept": {
                             "code": str(category).strip("/").split("/")[-1],
+                            "vocabulary": {
+                                "code": "tadirah2"
+                            },
                             "uri": str(category),
                         }
                     })
@@ -223,6 +238,9 @@ def main():
                         },
                         "concept": {
                             "code": mode_of_use,
+                            "vocabulary": {
+                                "code": "invocation-type",
+                            },
                             "uri": f"{NS_INVOCATION_TYPE}{mode_of_use}"
                         }
                     }
@@ -256,6 +274,9 @@ def main():
                         },
                         "concept": {
                             "code": str(lifecycle_status).split("/")[-1],
+                            "vocabulary": {
+                                "code": "life-cycle-status" #MAYBE TODO: verify?
+                            },
                             "uri": str(lifecycle_status)
                         }
                     }
@@ -268,6 +289,9 @@ def main():
                         },
                         "concept": {
                             "code": trl.split("/")[-1],
+                            "vocabulary": {
+                                "code": "technology-readiness-level" #MAYBE TODO: verify? 
+                            },
                             "uri": trl
                         }
                     }
@@ -283,6 +307,9 @@ def main():
                             "concept": {
                                 "code": str(keyword.lower().replace(" ","+")),
                                 "label": str(keyword),
+                                "vocabulary": {
+                                    "code": "sshoc-keyword",
+                                }
                             }
                         }
                     )
@@ -344,6 +371,7 @@ def main():
                             "code": "version"
                         },
                         "value": str(g.value(res,SDO.version,None)),
+                        "concept": EMPTY_PROPERTY_CONCEPT,
                     }
                 )
 
@@ -360,6 +388,7 @@ def main():
                                 "code": "user-manual-url"
                             },
                             "value": url,
+                            "concept": EMPTY_PROPERTY_CONCEPT,
                         }
                     )
 
@@ -376,6 +405,9 @@ def main():
                         },
                         "concept": {
                             "code": language,
+                            "vocabulary": {
+                                "code": "iso-639-3"
+                            },
                             "uri": f"https://vocabs.acdh.oeaw.ac.at/iso6393/{language}"
                         }
                     }
