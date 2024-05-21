@@ -4,7 +4,7 @@ import sys
 import argparse
 import json
 import requests
-from typing import Optional
+from typing import Optional, List
 from rdflib import Graph, URIRef,Literal, OWL, RDF
 from codemeta.common import getstream, init_graph, AttribDict, SDO, CODEMETA, REPOSTATUS, SOFTWARETYPES, TRL,  iter_ordered_list, get_doi
 from codemeta.parsers.jsonld import parse_jsonld
@@ -99,12 +99,14 @@ class MarketPlaceAPI:
     def get_source(self, url: str) -> dict:
         response = requests.get(f"{self.baseurl}/api/sources", params={"q": url },headers={'accept': 'application/json'})
         response.raise_for_status()
+        if response.json()['hits'] == 0:
+            raise KeyError()
         return response.json()['sources'][0]
 
     def get_or_add_source(self, label: str, url: str, urltemplate: str) -> dict:
         try:
             return self.get_source(url)
-        except requests.exceptions.HTTPError:
+        except (requests.exceptions.HTTPError, KeyError):
             return self.add_source(label, url, urltemplate)
         except requests.exceptions.JSONDecodeError:
             raise
@@ -117,16 +119,51 @@ class MarketPlaceAPI:
         })
         response.raise_for_status()
         return response.json()['sources'][0]
+
+    def get_actor(self, name: str) -> dict:
+        response = requests.get(f"{self.baseurl}/api/actor-search", params={"q": name.strip() },headers={'accept': 'application/json'})
+        response.raise_for_status()
+        if response.json()['hits'] == 0:
+            raise KeyError()
+        return response.json()['actors'][0] #returns the first match! (may not be what you want if there are multiple)
+
+    def add_actor(self, name: str,  website: Optional[str], email: Optional[str], orcid: Optional[str]) -> dict:
+        external_ids = []
+        if orcid:
+            external_ids.append({
+                "identifierService": {
+                    "code": "ORCID",
+                    "label": "ORCID",
+                    "urlTemplate": "https://orcid.org/{source-item-id}",
+                },
+                "identifier": orcid.replace("https://orcid.org/","")
+            })
+        payload = {
+            "name": name,
+            "externalIds": external_ids,
+            "website": website if website else "",
+            "email": website if website else "",
+            "affiliations": [], # we don't do affiliations in this convertor yet (too messy with changing affiliations and duplicates)
+        }
+        response = requests.post(f"{self.baseurl}/api/actors", headers={'Content-type': 'application/json', 'accept': 'application/json'}, json=payload)
+        response.raise_for_status()
+        return response.json()['sources'][0]
+
+    def get_or_add_actor(self, name: str,  website: Optional[str], email: Optional[str], orcid: Optional[str]) -> dict:
+        try:
+            return self.get_actor(name)
+        except (requests.exceptions.HTTPError, KeyError):
+            return self.add_actor(name, website, email, orcid )
+        except requests.exceptions.JSONDecodeError:
+            raise
+
         
 
-
-
-
-
 def clean(d: dict) -> dict:
+   """Removes keys/values with empty values"""
    return { k: v for k,v in d.items() if v }
 
-def get_actors(g: Graph, res: URIRef, prop=SDO.author, offset=0):
+def get_actors(api: MarketPlaceAPI, g: Graph, res: URIRef, prop=SDO.author, offset=0):
     if prop == SDO.author:
         code = "author"
         label = "Author"
@@ -142,9 +179,7 @@ def get_actors(g: Graph, res: URIRef, prop=SDO.author, offset=0):
     for i,(_,_,o) in enumerate(iter_ordered_list(g,res,prop)):
         if isinstance(o, Literal):
             yield clean({
-                "actor": {
-                    "name": str(o)
-                },
+                "actor": api.get_or_add_actor(str(o),None,None,None),
                 "role": { 
                     "code": code,
                     "label": label,
@@ -152,35 +187,23 @@ def get_actors(g: Graph, res: URIRef, prop=SDO.author, offset=0):
                 }
             })
         else:
-            external_ids = []
-            external_id = None
+            orcid = None
             if str(o).startswith("https://orcid.org/"):
-                external_id = str(o)
+                orcid = str(o)
             elif g.value(o,OWL.sameAs,None) and str(g.value(o,OWL.sameAs,None)).startswith("https://orcid.org/"):
-                external_id = str(g.value(o,OWL.sameAs,None))
-            if external_id:
-                external_ids.append({
-                    "identifierService": {
-                        "code": "ORCID",
-                        "label": "ORCID",
-                        "urlTemplate": "https://orcid.org/{source-item-id}",
-                    },
-                    "identifier": external_id.replace("https://orcid.org/","")
-                })
-            name = None
+                orcid = str(g.value(o,OWL.sameAs,None))
             if isinstance(o, Literal):
                 name = str(o)
             elif (o,SDO.name,None) in g:
                 name = g.value(o, SDO.name,None)
             elif (o,SDO.givenName,None) in g and (o,SDO.familyName,None) in g:
                 name = str(g.value(o, SDO.givenName,None)) + " " + str(g.value(o, SDO.familyName,None))
+            else:
+                raise Exception("No name found for actor")
             url = g.value(o, SDO.url,None)
+            email = g.value(o, SDO.email,None)
             yield clean({
-                "actor": clean({
-                    "name": name,
-                    "externalIds": external_ids,
-                    "website": str(url) if url else None
-                }),
+                "actor": api.get_or_add_actor(name, url, email, orcid),
                 "role": { 
                     "code": code,
                     "label": label,
@@ -212,8 +235,8 @@ def main():
 
         for res,_,_ in g.triples((None,RDF.type, SDO.SoftwareSourceCode)):
             assert isinstance(res, URIRef)
-            actors = list(get_actors(g, res, SDO.maintainer))
-            actors += list(get_actors(g, res, SDO.author, len(actors)))
+            actors = list(get_actors(api, g, res, SDO.maintainer))
+            actors += list(get_actors(api, g, res, SDO.author, len(actors)))
             properties = []
             for _,_, license in g.triples((res, SDO.license, None)):
                 if str(license).startswith("http"):
