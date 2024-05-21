@@ -3,6 +3,8 @@
 import sys
 import argparse
 import json
+import requests
+from typing import Optional
 from rdflib import Graph, URIRef,Literal, OWL, RDF
 from codemeta.common import getstream, init_graph, AttribDict, SDO, CODEMETA, REPOSTATUS, SOFTWARETYPES, TRL,  iter_ordered_list, get_doi
 from codemeta.parsers.jsonld import parse_jsonld
@@ -81,6 +83,44 @@ EMPTY_PROPERTY_CONCEPT = {
     "uri": "",
 }
 
+class MarketPlaceAPI:
+    def __init__(self, host: str, username: Optional[str] = None, password: Optional[str] = None):
+        self.host = host
+        if username and password:
+            #required for write-access
+            url= f"https://{self.host}/api/auth/sign-in"
+            response = requests.post(url, headers={'Content-type': 'application/json'}, json={'username' : username,'password': password})
+            self.bearer= response.headers['Authorization']
+        else:
+            self.bearer = None
+
+    def get_source(self, url: str) -> dict:
+        response = requests.get(f"https://{self.host}/api/sources", params={"q": url },headers={'accept': 'application/json'})
+        response.raise_for_status()
+        return response.json()['sources'][0]
+
+    def get_or_add_source(self, label: str, url: str, urltemplate: str) -> dict:
+        try:
+            return self.get_source(url)
+        except requests.exceptions.HTTPError:
+            return self.add_source(label, url, urltemplate)
+        except requests.exceptions.JSONDecodeError:
+            raise
+
+    def add_source(self, label: str, url: str, urltemplate: str) -> dict:
+        response = requests.post(f"https://{self.host}/api/sources", headers={'Content-type': 'application/json', 'accept': 'application/json'}, json={
+            "label": label,
+            "url": url,
+            "urlTemplate": urltemplate,
+        })
+        response.raise_for_status()
+        return response.json()['sources'][0]
+        
+
+
+
+
+
 def clean(d: dict) -> dict:
    return { k: v for k,v in d.items() if v }
 
@@ -150,10 +190,19 @@ def get_actors(g: Graph, res: URIRef, prop=SDO.author, offset=0):
 
 def main():
     parser = argparse.ArgumentParser(prog="codemeta2mp", description="Converts codemeta to SSHOC Open Marketplace") 
+    parser.add_argument('host', help="Marketplace API host name", type=str, default="marketplace-api.sshopencloud.eu") 
+    parser.add_argument('username', help="Username", type=str, required=False) 
+    parser.add_argument('password', help="Password", type=str, required=False) 
+    parser.add_argument('sourcelabel', help="Source label", type=str, default="CLARIAH-NL Tools") 
+    parser.add_argument('sourceurl', help="Source URL", type=str, default="https://tools.clariah.nl") 
+    parser.add_argument('sourcetemplate', help="Source URL Template", type=str, default="https://tools.clariah.nl/{source-item-id}") 
     parser.add_argument('inputfiles', nargs='+', help="Input files (JSON-LD)", type=str) 
 
     args = parser.parse_args()
     attribs = AttribDict({})
+
+    api = MarketPlaceAPI(args.hostname, args.username, args.password) 
+    source = api.get_or_add_source(args.sourcelabel, args.sourceurl, args.sourcetemplate)
 
     for filename in args.inputfiles:
         g, _ = init_graph(attribs)
@@ -419,11 +468,7 @@ def main():
                 "description": g.value(res, SDO.description, None),
                 "externalID": external_ids, 
                 "accessibleAt": accessible_at,
-                "source": {
-                    "label": "CLARIAH-NL",
-                    "url": "https://tools.clariah.nl",
-                    "urlTemplate": "https://tools.clariah.nl/{source-item-id}",
-                },
+                "source": source,
                 "sourceItemId": g.value(res, SDO.identifier, None),
                 "thumbnail": g.value(res,SDO.thumbnailUrl,None),
                 "contributors": actors,

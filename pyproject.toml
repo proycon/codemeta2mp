@@ -7,7 +7,7 @@ name = "codemeta2mp"
 description = "Converts codemeta to a representation for the SSHOC Open Marketplace"
 version = "0.1"
 dependencies = [
-    "codemetapy",
+    "codemetapy", "requests"
 ]
 authors = [
     {name = "Maarten van Gompel", email = "proycon@anaproy.nl"}
