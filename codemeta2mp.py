@@ -84,18 +84,20 @@ EMPTY_PROPERTY_CONCEPT = {
 }
 
 class MarketPlaceAPI:
-    def __init__(self, host: str, username: Optional[str] = None, password: Optional[str] = None):
-        self.host = host
+    def __init__(self, baseurl: str, username: Optional[str] = None, password: Optional[str] = None):
+        self.baseurl = baseurl
+        if self.baseurl[-1] == "/":
+            self.baseurl = self.baseurl[:-1]
         if username and password:
             #required for write-access
-            url= f"https://{self.host}/api/auth/sign-in"
+            url= f"{self.baseurl}/api/auth/sign-in"
             response = requests.post(url, headers={'Content-type': 'application/json'}, json={'username' : username,'password': password})
             self.bearer= response.headers['Authorization']
         else:
             self.bearer = None
 
     def get_source(self, url: str) -> dict:
-        response = requests.get(f"https://{self.host}/api/sources", params={"q": url },headers={'accept': 'application/json'})
+        response = requests.get(f"{self.baseurl}/api/sources", params={"q": url },headers={'accept': 'application/json'})
         response.raise_for_status()
         return response.json()['sources'][0]
 
@@ -108,7 +110,7 @@ class MarketPlaceAPI:
             raise
 
     def add_source(self, label: str, url: str, urltemplate: str) -> dict:
-        response = requests.post(f"https://{self.host}/api/sources", headers={'Content-type': 'application/json', 'accept': 'application/json'}, json={
+        response = requests.post(f"{self.baseurl}/api/sources", headers={'Content-type': 'application/json', 'accept': 'application/json'}, json={
             "label": label,
             "url": url,
             "urlTemplate": urltemplate,
@@ -190,7 +192,7 @@ def get_actors(g: Graph, res: URIRef, prop=SDO.author, offset=0):
 
 def main():
     parser = argparse.ArgumentParser(prog="codemeta2mp", description="Converts codemeta to SSHOC Open Marketplace") 
-    parser.add_argument('host', help="Marketplace API host name", type=str, default="marketplace-api.sshopencloud.eu") 
+    parser.add_argument('baseurl', help="Marketplace API base url", type=str, default="https://marketplace-api.sshopencloud.eu") 
     parser.add_argument('username', help="Username", type=str, required=False) 
     parser.add_argument('password', help="Password", type=str, required=False) 
     parser.add_argument('sourcelabel', help="Source label", type=str, default="CLARIAH-NL Tools") 
@@ -201,7 +203,7 @@ def main():
     args = parser.parse_args()
     attribs = AttribDict({})
 
-    api = MarketPlaceAPI(args.hostname, args.username, args.password) 
+    api = MarketPlaceAPI(args.baseurl, args.username, args.password) 
     source = api.get_or_add_source(args.sourcelabel, args.sourceurl, args.sourcetemplate)
 
     for filename in args.inputfiles:
