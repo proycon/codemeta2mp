@@ -234,12 +234,12 @@ def get_actors(api: MarketPlaceAPI, g: Graph, res: URIRef, prop=SDO.author, offs
 
 def main():
     parser = argparse.ArgumentParser(prog="codemeta2mp", description="Converts codemeta to SSHOC Open Marketplace") 
-    parser.add_argument('baseurl', help="Marketplace API base url", type=str, default="https://marketplace-api.sshopencloud.eu") 
-    parser.add_argument('username', help="Username", type=str, required=False) 
-    parser.add_argument('password', help="Password", type=str, required=False) 
-    parser.add_argument('sourcelabel', help="Source label", type=str, default="CLARIAH-NL Tools") 
-    parser.add_argument('sourceurl', help="Source URL", type=str, default="https://tools.clariah.nl") 
-    parser.add_argument('sourcetemplate', help="Source URL Template", type=str, default="https://tools.clariah.nl/{source-item-id}") 
+    parser.add_argument('--baseurl', help="Marketplace API base url", type=str, default="https://marketplace-api.sshopencloud.eu") 
+    parser.add_argument('--username', help="Username", type=str, required=False) 
+    parser.add_argument('--password', help="Password", type=str, required=False) 
+    parser.add_argument('--sourcelabel', help="Source label", type=str, default="CLARIAH-NL Tools") 
+    parser.add_argument('--sourceurl', help="Source URL", type=str, default="https://tools.clariah.nl") 
+    parser.add_argument('--sourcetemplate', help="Source URL Template", type=str, default="https://tools.clariah.nl/{source-item-id}") 
     parser.add_argument('inputfiles', nargs='+', help="Input files (JSON-LD)", type=str) 
 
     args = parser.parse_args()
