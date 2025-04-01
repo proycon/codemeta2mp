@@ -4,7 +4,7 @@ import sys
 import argparse
 import json
 import requests
-from typing import Optional, List
+from typing import Optional, List, Union
 from rdflib import Graph, URIRef,Literal, OWL, RDF
 from codemeta.common import getstream, init_graph, AttribDict, SDO, CODEMETA, REPOSTATUS, SOFTWARETYPES, TRL,  iter_ordered_list, get_doi
 from codemeta.parsers.jsonld import parse_jsonld
@@ -116,11 +116,9 @@ class MarketPlaceAPI:
 
     def get_source(self, url: str) -> dict:
         response = requests.get(f"{self.baseurl}/api/sources", params={"q": url },headers=self.headers())
-        response.raise_for_status()
+        self.validate_response(response,None,"get_source")
         if response.json()['hits'] == 0:
             raise KeyError()
-        if self.debug:
-            print(f"get_source:", response.json(), file=sys.stderr)
         return response.json()['sources'][0]
 
     def get_or_add_source(self, label: str, url: str, urltemplate: str) -> dict:
@@ -132,23 +130,20 @@ class MarketPlaceAPI:
             raise
 
     def add_source(self, label: str, url: str, urltemplate: str) -> dict:
-        response = requests.post(f"{self.baseurl}/api/sources", headers=self.headers(), json={
+        payload = {
             "label": label,
             "url": url,
             "urlTemplate": urltemplate,
-        })
-        response.raise_for_status()
-        if self.debug:
-            print(f"add_source:", response.json(), file=sys.stderr)
+        }
+        response = requests.post(f"{self.baseurl}/api/sources", headers=self.headers(), json=payload)
+        self.validate_response(response,payload,"add_source")
         return response.json()['sources'][0]
 
     def get_actor(self, name: str) -> dict:
         response = requests.get(f"{self.baseurl}/api/actor-search", params={"q": name.strip() },headers=self.headers())
-        response.raise_for_status()
+        self.validate_response(response,None,"get_actor")
         if response.json()['hits'] == 0:
             raise KeyError()
-        if self.debug:
-            print("get_actor:", response.json(),file=sys.stderr)
         return response.json()['actors'][0] #returns the first match! (may not be what you want if there are multiple)
 
     def add_actor(self, name: str,  website: Optional[str], email: Optional[str], orcid: Optional[str]) -> dict:
@@ -170,9 +165,7 @@ class MarketPlaceAPI:
             "affiliations": [], # we don't do affiliations in this convertor yet (too messy with changing affiliations and duplicates)
         }
         response = requests.post(f"{self.baseurl}/api/actors", headers=self.headers(), json=payload)
-        response.raise_for_status()
-        if self.debug:
-            print("add_actor:", response.json(),file=sys.stderr)
+        self.validate_response(response,payload,"add_actor")
         return response.json()
 
     def get_or_add_actor(self, name: str,  website: Optional[str], email: Optional[str], orcid: Optional[str]) -> dict:
@@ -186,9 +179,7 @@ class MarketPlaceAPI:
     def get_tool(self, name: str, sourcelabel: str = "") -> Optional[dict]:
         """Gets the data of tool if it exists"""
         response = requests.get(f"{self.baseurl}/api/item-search", params={"q": name.strip(), "f": f"f.source={sourcelabel}","categories":"tool-or-service"},headers={'accept': 'application/json'})
-        response.raise_for_status()
-        if self.debug:
-            print("get_tool:", response.json(),file=sys.stderr)
+        self.validate_response(response,None,"get_tool")
         if response.json()['hits'] == 0:
             return None
         elif response.json()['hits'] > 1:
@@ -197,18 +188,26 @@ class MarketPlaceAPI:
         return response.json()['items'][0] #grab first match, this may not be accurate
 
     def add_tool(self, data: dict):
-        if self.debug:
-            print("add_tool data:", json.dumps(data,indent=4),file=sys.stderr)
         response = requests.post(f"{self.baseurl}/api/tools-services", headers=self.headers(), json=data)
-        response.raise_for_status()
-        if self.debug:
-            print("add_tool:", response.json(),file=sys.stderr)
+        self.validate_response(response, data, "add_tool")
 
     def update_tool(self, persistent_id: str, data: dict):
         response = requests.post(f"{self.baseurl}/api/tools-services/" + persistent_id, headers=self.headers(), json=data)
-        response.raise_for_status()
-        if self.debug:
-            print("update_tool:", response.json(),file=sys.stderr)
+        self.validate_response(response, data, "update_tool")
+
+    def validate_response(self, response: requests.Response, data: Union[dict,None], context: str):
+        if response.status_code < 200 or response.status_code >= 300:
+            print(f"-------- ERROR {response.status_code} in {context} ---------",file=sys.stderr)
+            if data:
+                print("POSTED DATA:",file=sys.stderr)
+                print(json.dumps(data,indent=4),file=sys.stderr)
+            if response.json():
+                print("ERROR FEEDBACK:",file=sys.stderr)
+                print(json.dumps(response.json(),indent=4), file=sys.stderr)
+            response.raise_for_status()
+        elif self.debug:
+            print(f"[DEBUG {context}]:", response.json(),file=sys.stderr)
+
         
 
 def clean(d: dict) -> dict:
@@ -553,6 +552,8 @@ def main():
                 "contributors": actors,
                 "properties": properties,
             }
+
+            entry = { k:v for k, v in entry.items() if v }
 
             existing = api.get_tool(g.value(res, SDO.name, None))
             if existing:
