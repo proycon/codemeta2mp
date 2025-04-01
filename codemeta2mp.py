@@ -84,8 +84,9 @@ EMPTY_PROPERTY_CONCEPT = {
 }
 
 class MarketPlaceAPI:
-    def __init__(self, baseurl: str, username: Optional[str] = None, password: Optional[str] = None, token_secret: Optional[str] =None):
+    def __init__(self, baseurl: str, username: Optional[str] = None, password: Optional[str] = None, token_secret: Optional[str] =None, debug=False):
         """Initialize a client connection to the Marketplace API, username and password are required for write access"""
+        self.debug = debug
         self.baseurl = baseurl
         if self.baseurl[-1] == "/":
             self.baseurl = self.baseurl[:-1]
@@ -94,8 +95,9 @@ class MarketPlaceAPI:
             url= f"{self.baseurl}/api/auth/sign-in"
             response = requests.post(url, headers={'Content-type': 'application/json'}, json={'username' : username,'password': password})
             response.raise_for_status()
-            print(f"Sign-in succesful", file=sys.stderr)
             self.bearer= response.headers['Authorization'] #this includes the bearer prefix
+            if self.debug:
+                print(f"Sign-in succesful: {self.bearer}", file=sys.stderr)
         elif token_secret:
             self.bearer = token_secret
         else:
@@ -105,6 +107,8 @@ class MarketPlaceAPI:
         headers= {'Content-type': 'application/json', 'Accept': "application/json"}
         if self.bearer:
             headers['Authorization'] = f"{self.bearer}" #includes bearer prefix
+            if self.debug:
+                print(f"Passing authorization: {self.bearer}", file=sys.stderr)
         for key, value in kwargs.items():
             key = key[0].upper() + key[1:].replace("_","-")
             headers[key] = value
@@ -115,6 +119,8 @@ class MarketPlaceAPI:
         response.raise_for_status()
         if response.json()['hits'] == 0:
             raise KeyError()
+        if self.debug:
+            print(f"get_source:", response.json(), file=sys.stderr)
         return response.json()['sources'][0]
 
     def get_or_add_source(self, label: str, url: str, urltemplate: str) -> dict:
@@ -132,6 +138,8 @@ class MarketPlaceAPI:
             "urlTemplate": urltemplate,
         })
         response.raise_for_status()
+        if self.debug:
+            print(f"add_source:", response.json(), file=sys.stderr)
         return response.json()['sources'][0]
 
     def get_actor(self, name: str) -> dict:
@@ -139,6 +147,8 @@ class MarketPlaceAPI:
         response.raise_for_status()
         if response.json()['hits'] == 0:
             raise KeyError()
+        if self.debug:
+            print("get_actor:", response.json(),file=sys.stderr)
         return response.json()['actors'][0] #returns the first match! (may not be what you want if there are multiple)
 
     def add_actor(self, name: str,  website: Optional[str], email: Optional[str], orcid: Optional[str]) -> dict:
@@ -161,7 +171,9 @@ class MarketPlaceAPI:
         }
         response = requests.post(f"{self.baseurl}/api/actors", headers=self.headers(), json=payload)
         response.raise_for_status()
-        return response.json()['sources'][0]
+        if self.debug:
+            print("add_actor:", response.json(),file=sys.stderr)
+        return response.json()
 
     def get_or_add_actor(self, name: str,  website: Optional[str], email: Optional[str], orcid: Optional[str]) -> dict:
         try:
@@ -175,6 +187,8 @@ class MarketPlaceAPI:
         """Gets the data of tool if it exists"""
         response = requests.get(f"{self.baseurl}/api/item-search", params={"q": name.strip(), "f": f"f.source={sourcelabel}","categories":"tool-or-service"},headers={'accept': 'application/json'})
         response.raise_for_status()
+        if self.debug:
+            print("get_tool:", response.json(),file=sys.stderr)
         if response.json()['hits'] == 0:
             return None
         elif response.json()['hits'] > 1:
@@ -183,12 +197,18 @@ class MarketPlaceAPI:
         return response.json()['items'][0] #grab first match, this may not be accurate
 
     def add_tool(self, data: dict):
+        if self.debug:
+            print("add_tool data:", json.dumps(data,indent=4),file=sys.stderr)
         response = requests.post(f"{self.baseurl}/api/tools-services", headers=self.headers(), json=data)
         response.raise_for_status()
+        if self.debug:
+            print("add_tool:", response.json(),file=sys.stderr)
 
     def update_tool(self, persistent_id: str, data: dict):
         response = requests.post(f"{self.baseurl}/api/tools-services/" + persistent_id, headers=self.headers(), json=data)
         response.raise_for_status()
+        if self.debug:
+            print("update_tool:", response.json(),file=sys.stderr)
         
 
 def clean(d: dict) -> dict:
@@ -254,12 +274,13 @@ def main():
     parser.add_argument('--sourcelabel', help="Source label", type=str, default="CLARIAH-NL Tools") 
     parser.add_argument('--sourceurl', help="Source URL", type=str, default="https://tools.clariah.nl") 
     parser.add_argument('--sourcetemplate', help="Source URL Template", type=str, default="https://tools.clariah.nl/{source-item-id}") 
+    parser.add_argument('--debug',help="Debug mode", action="store_true")
     parser.add_argument('inputfiles', nargs='+', help="Input files (JSON-LD)", type=str) 
 
     args = parser.parse_args()
     attribs = AttribDict({})
 
-    api = MarketPlaceAPI(args.baseurl, args.username, args.password, args.token) 
+    api = MarketPlaceAPI(args.baseurl, args.username, args.password, args.token, args.debug) 
     source = api.get_or_add_source(args.sourcelabel, args.sourceurl, args.sourcetemplate)
 
     for filename in args.inputfiles:
