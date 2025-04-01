@@ -84,7 +84,7 @@ EMPTY_PROPERTY_CONCEPT = {
 }
 
 class MarketPlaceAPI:
-    def __init__(self, baseurl: str, username: Optional[str] = None, password: Optional[str] = None):
+    def __init__(self, baseurl: str, username: Optional[str] = None, password: Optional[str] = None, token_secret: Optional[str] =None):
         """Initialize a client connection to the Marketplace API, username and password are required for write access"""
         self.baseurl = baseurl
         if self.baseurl[-1] == "/":
@@ -93,12 +93,25 @@ class MarketPlaceAPI:
             #required for write-access
             url= f"{self.baseurl}/api/auth/sign-in"
             response = requests.post(url, headers={'Content-type': 'application/json'}, json={'username' : username,'password': password})
-            self.bearer= response.headers['Authorization']
+            response.raise_for_status()
+            print(f"Sign-in succesful", file=sys.stderr)
+            self.bearer= response.headers['Authorization'] #this includes the bearer prefix
+        elif token_secret:
+            self.bearer = token_secret
         else:
             self.bearer = None
 
+    def headers(self, **kwargs) -> dict:
+        headers= {'Content-type': 'application/json', 'Accept': "application/json"}
+        if self.bearer:
+            headers['Authorization'] = f"{self.bearer}" #includes bearer prefix
+        for key, value in kwargs.items():
+            key = key[0].upper() + key[1:].replace("_","-")
+            headers[key] = value
+        return headers
+
     def get_source(self, url: str) -> dict:
-        response = requests.get(f"{self.baseurl}/api/sources", params={"q": url },headers={'accept': 'application/json'})
+        response = requests.get(f"{self.baseurl}/api/sources", params={"q": url },headers=self.headers())
         response.raise_for_status()
         if response.json()['hits'] == 0:
             raise KeyError()
@@ -113,7 +126,7 @@ class MarketPlaceAPI:
             raise
 
     def add_source(self, label: str, url: str, urltemplate: str) -> dict:
-        response = requests.post(f"{self.baseurl}/api/sources", headers={'Content-type': 'application/json', 'accept': 'application/json'}, json={
+        response = requests.post(f"{self.baseurl}/api/sources", headers=self.headers(), json={
             "label": label,
             "url": url,
             "urlTemplate": urltemplate,
@@ -122,7 +135,7 @@ class MarketPlaceAPI:
         return response.json()['sources'][0]
 
     def get_actor(self, name: str) -> dict:
-        response = requests.get(f"{self.baseurl}/api/actor-search", params={"q": name.strip() },headers={'accept': 'application/json'})
+        response = requests.get(f"{self.baseurl}/api/actor-search", params={"q": name.strip() },headers=self.headers())
         response.raise_for_status()
         if response.json()['hits'] == 0:
             raise KeyError()
@@ -146,7 +159,7 @@ class MarketPlaceAPI:
             "email": email if email else "",
             "affiliations": [], # we don't do affiliations in this convertor yet (too messy with changing affiliations and duplicates)
         }
-        response = requests.post(f"{self.baseurl}/api/actors", headers={'Content-type': 'application/json', 'accept': 'application/json'}, json=payload)
+        response = requests.post(f"{self.baseurl}/api/actors", headers=self.headers(), json=payload)
         response.raise_for_status()
         return response.json()['sources'][0]
 
@@ -170,11 +183,11 @@ class MarketPlaceAPI:
         return response.json()['items'][0] #grab first match, this may not be accurate
 
     def add_tool(self, data: dict):
-        response = requests.post(f"{self.baseurl}/api/tools-services", headers={'Content-type': 'application/json', 'accept': 'application/json'}, json=data)
+        response = requests.post(f"{self.baseurl}/api/tools-services", headers=self.headers(), json=data)
         response.raise_for_status()
 
     def update_tool(self, persistent_id: str, data: dict):
-        response = requests.post(f"{self.baseurl}/api/tools-services/" + persistent_id, headers={'Content-type': 'application/json', 'accept': 'application/json'}, json=data)
+        response = requests.post(f"{self.baseurl}/api/tools-services/" + persistent_id, headers=self.headers(), json=data)
         response.raise_for_status()
         
 
@@ -237,6 +250,7 @@ def main():
     parser.add_argument('--baseurl', help="Marketplace API base url", type=str, default="https://marketplace-api.sshopencloud.eu") 
     parser.add_argument('--username', help="Username", type=str, required=False) 
     parser.add_argument('--password', help="Password", type=str, required=False) 
+    parser.add_argument('--token', help="Token secret", type=str, required=False) 
     parser.add_argument('--sourcelabel', help="Source label", type=str, default="CLARIAH-NL Tools") 
     parser.add_argument('--sourceurl', help="Source URL", type=str, default="https://tools.clariah.nl") 
     parser.add_argument('--sourcetemplate', help="Source URL Template", type=str, default="https://tools.clariah.nl/{source-item-id}") 
@@ -245,7 +259,7 @@ def main():
     args = parser.parse_args()
     attribs = AttribDict({})
 
-    api = MarketPlaceAPI(args.baseurl, args.username, args.password) 
+    api = MarketPlaceAPI(args.baseurl, args.username, args.password, args.token) 
     source = api.get_or_add_source(args.sourcelabel, args.sourceurl, args.sourcetemplate)
 
     for filename in args.inputfiles:

@@ -14,8 +14,7 @@ pip install git+https://github.com/proycon/codemeta2mp.git
 
 ## Usage
 
-If you already have a `codemeta.json` file, just run `codemeta2mp --username username --password password codemeta.json` to upload it to the SSHOC marketplace:
+If you already have a `codemeta.json` file, just run `codemeta2mp --baseurl http://localhost:8080 --username Administrator --password q1w2e3r4t5 codemeta.json` to upload it to the SSHOC marketplace (the default credentials and URL are for a local development instance):
 
 1. Find the tool you want to convert on https://tools.clariah.nl/ (e.g. https://tools.clariah.nl/frog
-2. Run this on on it: ``curl --header 'Accept: application/json' https://tools.clariah.nl/frog/ | codemeta2mp --username username --password password -``
-
+2. Run this on on it: ``curl --header 'Accept: application/json' https://tools.clariah.nl/frog/ | codemeta2mp --baseurl http://localhost:8080 --username Administrator --password q1w2e3r4t5 -``
