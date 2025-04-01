@@ -2,7 +2,7 @@
 
 # Codemeta to SSHOC Open Marketplace
 
-This is a converter to transform data from codemeta into to the [SSHOC Open Marketplace](https://github.com/SSHOC/sshoc-marketplace-backend) by communicating via their API.
+This is a converter to transform data from codemeta for ingestion into the [SSHOC Open Marketplace](https://github.com/SSHOC/sshoc-marketplace-backend) by communicating via their API.
 
 ## Installation
 
