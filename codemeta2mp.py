@@ -377,7 +377,7 @@ def main():
 
             accessible_at = []
             modes_of_use = set()
-            for _,_,targetproduct in g.triples((res,SDO.targetProduct,None)):
+            for _,_,targetproduct in g.triples((res,CODEMETA.isSourceCodeOf,None)):
                 url = g.value(targetproduct,SDO.url,None)
                 if url:
                     accessible_at.append(str(url))
@@ -585,7 +585,7 @@ def main():
                 "properties": properties,
             }
 
-            entry = { k:v for k, v in entry.items() if v }
+            entry = clean(entry)
 
             name = value(g, res, SDO.name)
             assert isinstance(name,str)
