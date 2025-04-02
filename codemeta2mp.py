@@ -469,7 +469,8 @@ def main():
                                 "vocabulary": {
                                     "code": "sshoc-keyword",
                                 }
-                            }
+                            },
+                            "value": str(keyword.strip()),
                         }
                     )
 
