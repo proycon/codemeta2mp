@@ -219,6 +219,12 @@ class MarketPlaceAPI:
             raise KeyError()
         return response.json()['concepts'][0] #returns the first match! (may not be what you want if there are multiple)
 
+    def add_thumbnail(self, url: str) -> dict:
+        """Uploads a thumbnail and returns an object with media ID"""
+        response = requests.post(f"{self.baseurl}/api/media/upload/import", json={"sourceUrl": url},headers=self.headers())
+        self.validate_response(response, None, "add_thumbnail")
+        return response.json()
+
     def get_tool(self, name: str, sourcelabel: str = "") -> Optional[dict]:
         """Gets the data of tool if it exists"""
         response = requests.get(f"{self.baseurl}/api/item-search", params={"q": name.strip(), "f": f"f.source={sourcelabel}","categories":"tool-or-service"},headers={'accept': 'application/json'})
@@ -601,6 +607,14 @@ def main():
                     }
                 )
 
+            thumbnail_url = value(g, res, SDO.thumbnailUrl)
+            if thumbnail_url:
+                thumbnail_data =  {
+                    "info": api.add_thumbnail(thumbnail_url),
+                    "caption": value(g, res,SDO.name),
+                }
+            else:
+                thumbnail_data = None
 
             entry = {
                 "label": g.value(res, SDO.name, None),
@@ -609,7 +623,7 @@ def main():
                 "accessibleAt": accessible_at,
                 "source": source,
                 "sourceItemId": g.value(res, SDO.identifier, None),
-                "thumbnail": g.value(res,SDO.thumbnailUrl,None),
+                "thumbnail": thumbnail_data,
                 "contributors": actors,
                 "properties": properties,
             }
