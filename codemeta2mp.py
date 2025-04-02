@@ -104,6 +104,7 @@ class MarketPlaceAPI:
             self.bearer = None
 
     def headers(self, **kwargs) -> dict:
+        """Internal helper method to return common HTTP request headers"""
         headers= {'Content-type': 'application/json', 'Accept': "application/json"}
         if self.bearer:
             headers['Authorization'] = f"{self.bearer}" #includes bearer prefix
@@ -115,6 +116,7 @@ class MarketPlaceAPI:
         return headers
 
     def get_source(self, url: str) -> dict:
+        """Get a source by URL"""
         response = requests.get(f"{self.baseurl}/api/sources", params={"q": url },headers=self.headers())
         self.validate_response(response,None,"get_source")
         if response.json()['hits'] == 0:
@@ -122,6 +124,7 @@ class MarketPlaceAPI:
         return response.json()['sources'][0]
 
     def get_or_add_source(self, label: str, url: str, urltemplate: str) -> dict:
+        """Get a source by URL, or adds it anew if it doesn't exist yet"""
         try:
             return self.get_source(url)
         except (requests.exceptions.HTTPError, KeyError):
@@ -130,6 +133,7 @@ class MarketPlaceAPI:
             raise
 
     def add_source(self, label: str, url: str, urltemplate: str) -> dict:
+        """Adds a source"""
         payload = {
             "label": label,
             "url": url,
@@ -140,6 +144,7 @@ class MarketPlaceAPI:
         return response.json()['sources'][0]
 
     def get_actor(self, name: str) -> dict:
+        """Gets an actor by name"""
         response = requests.get(f"{self.baseurl}/api/actor-search", params={"q": name.strip() },headers=self.headers())
         self.validate_response(response,None,"get_actor")
         if response.json()['hits'] == 0:
@@ -147,6 +152,7 @@ class MarketPlaceAPI:
         return response.json()['actors'][0] #returns the first match! (may not be what you want if there are multiple)
 
     def add_actor(self, name: str,  website: Optional[str], email: Optional[str], orcid: Optional[str]) -> dict:
+        """Adds an actor"""
         external_ids = []
         if orcid:
             external_ids.append({
@@ -169,6 +175,7 @@ class MarketPlaceAPI:
         return response.json()
 
     def get_or_add_actor(self, name: str,  website: Optional[str], email: Optional[str], orcid: Optional[str]) -> dict:
+        """Gets an actor by name, or adds it if it doesn't exist yet"""
         try:
             return self.get_actor(name)
         except (requests.exceptions.HTTPError, KeyError):
@@ -188,14 +195,17 @@ class MarketPlaceAPI:
         return response.json()['items'][0] #grab first match, this may not be accurate
 
     def add_tool(self, data: dict):
+        """Adds a tool, given a full data object"""
         response = requests.post(f"{self.baseurl}/api/tools-services", headers=self.headers(), json=data)
         self.validate_response(response, data, "add_tool")
 
     def update_tool(self, persistent_id: str, data: dict):
+        """Updates an existing tool, given a full data object"""
         response = requests.post(f"{self.baseurl}/api/tools-services/" + persistent_id, headers=self.headers(), json=data)
         self.validate_response(response, data, "update_tool")
 
     def validate_response(self, response: requests.Response, data: Union[dict,None], context: str):
+        """Internal helper method to validate responses and raise errors if needed"""
         if response.status_code < 200 or response.status_code >= 300:
             print(f"-------- ERROR {response.status_code} in {context} ---------",file=sys.stderr)
             if data:
