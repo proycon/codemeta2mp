@@ -105,7 +105,7 @@ class MarketPlaceAPI:
 
     def headers(self, **kwargs) -> dict:
         """Internal helper method to return common HTTP request headers"""
-        headers= {'Content-type': 'application/json', 'Accept': "application/json"}
+        headers= {'Content-type': 'application/json', 'accept': "application/json"}
         if self.bearer:
             headers['Authorization'] = f"{self.bearer}" #includes bearer prefix
             if self.debug:
@@ -116,7 +116,7 @@ class MarketPlaceAPI:
         return headers
 
     def get_source(self, url: str) -> dict:
-        """Get a source by URL"""
+        """Get a source by URL. Raises KeyError when not found"""
         response = requests.get(f"{self.baseurl}/api/sources", params={"q": url },headers=self.headers())
         self.validate_response(response,None,"get_source")
         if response.json()['hits'] == 0:
@@ -141,10 +141,10 @@ class MarketPlaceAPI:
         }
         response = requests.post(f"{self.baseurl}/api/sources", headers=self.headers(), json=payload)
         self.validate_response(response,payload,"add_source")
-        return response.json()['sources'][0]
+        return response.json()
 
     def get_actor(self, name: str) -> dict:
-        """Gets an actor by name"""
+        """Gets an actor by name. Raises KeyError when not found"""
         response = requests.get(f"{self.baseurl}/api/actor-search", params={"q": name.strip() },headers=self.headers())
         self.validate_response(response,None,"get_actor")
         if response.json()['hits'] == 0:
@@ -182,6 +182,34 @@ class MarketPlaceAPI:
             return self.add_actor(name, website, email, orcid )
         except requests.exceptions.JSONDecodeError:
             raise
+
+    def get_or_add_keyword(self, keyword: str) -> dict:
+        """Gets a keyword, or adds it if it doesn't exist yet"""
+        try:
+            return self.get_keyword(keyword)
+        except (requests.exceptions.HTTPError, KeyError):
+            return self.add_keyword(keyword)
+        except requests.exceptions.JSONDecodeError:
+            raise
+
+    def get_keyword(self, keyword: str) -> dict:
+        """Gets a keyword. Raises KeyError when not found"""
+        response = requests.get(f"{self.baseurl}/api/concept-search", params={"q": keyword.strip(), "types": "keyword" },headers=self.headers())
+        self.validate_response(response, None, "get_keyword")
+        if response.json()['hits'] == 0:
+            raise KeyError()
+        return response.json()['concepts'][0] #returns the first match! (may not be what you want if there are multiple)
+
+    def add_keyword(self, keyword: str) -> dict:
+        """Adds a keyword"""
+        code = keyword.strip().lower().replace(' ','-')
+        payload = {
+            "code": code,
+            "label": keyword, 
+        }
+        response = requests.post(f"{self.baseurl}/api/vocabularies/sshoc-keywords/concepts", headers=self.headers(), json=payload)
+        self.validate_response(response,payload,"add_keyword")
+        return response.json()
 
     def get_license(self, code: str) -> dict:
         """Gets license by SPDX code (not a full URI)"""
@@ -470,7 +498,7 @@ def main():
                                     "code": "sshoc-keyword",
                                 }
                             },
-                            "value": str(keyword.strip()),
+                            #"value": str(keyword.strip()),
                         }
                     )
 
