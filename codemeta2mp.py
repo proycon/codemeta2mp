@@ -6,7 +6,7 @@ import json
 import requests
 from typing import Optional, Union
 from rdflib import Graph, URIRef,Literal, OWL, RDF
-from codemeta.common import getstream, init_graph, AttribDict, SDO, CODEMETA, REPOSTATUS, SOFTWARETYPES, TRL,  iter_ordered_list, get_doi
+from codemeta.common import getstream, init_graph, AttribDict, SDO, CODEMETA, REPOSTATUS, SOFTWARETYPES, TRL,  iter_ordered_list, get_doi, license_to_spdx
 from codemeta.parsers.jsonld import parse_jsonld
 
 
@@ -183,6 +183,14 @@ class MarketPlaceAPI:
         except requests.exceptions.JSONDecodeError:
             raise
 
+    def get_license(self, code: str) -> dict:
+        """Gets license by SPDX code (not a full URI)"""
+        response = requests.get(f"{self.baseurl}/api/concept-search", params={"q": code.strip(), "types": "license" },headers=self.headers())
+        self.validate_response(response, None, "get_license")
+        if response.json()['hits'] == 0:
+            raise KeyError()
+        return response.json()['concepts'][0] #returns the first match! (may not be what you want if there are multiple)
+
     def get_tool(self, name: str, sourcelabel: str = "") -> Optional[dict]:
         """Gets the data of tool if it exists"""
         response = requests.get(f"{self.baseurl}/api/item-search", params={"q": name.strip(), "f": f"f.source={sourcelabel}","categories":"tool-or-service"},headers={'accept': 'application/json'})
@@ -308,19 +316,27 @@ def main():
             actors += list(get_actors(api, g, res, SDO.author, len(actors)))
             properties = []
             for _,_, license in g.triples((res, SDO.license, None)):
-                if str(license).startswith("http"):
-                    properties.append({
-                        "type": {
-                            "code": "license",
-                        },
-                        "concept": {
-                            "code": str(license).strip("/").split("/")[-1],
-                            "vocabulary": {
-                                "code": "software-license"
-                            },
-                            "uri": str(license),
-                        }
-                    })
+                if str(license).startswith(("http://spdx.org", "https://spdx.org")):
+                    code = str(license).strip("/").split("/")[-1]
+                else:
+                    #not SPDX? try to convert on the fly
+                    license = license_to_spdx(str(license))
+                    if str(license).startswith(("http://spdx.org", "https://spdx.org")):
+                        code = str(license).strip("/").split("/")[-1]
+                    else:
+                        print(f"WARNING: Not an SPDX license {res}: {license} .. skipping...", file=sys.stderr)
+                        continue
+                licensedata = api.get_license(code) #all spdx licenses are already in the marketplace database, we're not inserting new ones
+                if 'types' in licensedata:
+                    del licensedata['types']
+                if 'candidate' in licensedata:
+                    del licensedata['candidate']
+                properties.append({
+                    "type": {
+                        "code": "license",
+                    },
+                    "concept": licensedata
+                })
             for _,_, category in g.triples((res, SDO.applicationCategory, None)):
                 if str(category).startswith("https://vocabs.dariah.eu/tadirah/"):
                     properties.append({
