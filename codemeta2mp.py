@@ -4,7 +4,7 @@ import sys
 import argparse
 import json
 import requests
-from typing import Optional, List, Union
+from typing import Optional, Union
 from rdflib import Graph, URIRef,Literal, OWL, RDF
 from codemeta.common import getstream, init_graph, AttribDict, SDO, CODEMETA, REPOSTATUS, SOFTWARETYPES, TRL,  iter_ordered_list, get_doi
 from codemeta.parsers.jsonld import parse_jsonld
@@ -256,13 +256,14 @@ def get_actors(api: MarketPlaceAPI, g: Graph, res: URIRef, prop=SDO.author, offs
             if isinstance(o, Literal):
                 name = str(o)
             elif (o,SDO.name,None) in g:
-                name = g.value(o, SDO.name,None)
+                name = value(g, o, SDO.name)
             elif (o,SDO.givenName,None) in g and (o,SDO.familyName,None) in g:
-                name = str(g.value(o, SDO.givenName,None)) + " " + str(g.value(o, SDO.familyName,None))
+                name = f"{value(g, o, SDO.givenName)} {value(g, o, SDO.familyName)}"
             else:
                 raise Exception("No name found for actor")
-            url = g.value(o, SDO.url,None)
-            email = g.value(o, SDO.email,None)
+            url = value(g, o, SDO.url)
+            email =value(g, o, SDO.email)
+            assert isinstance(name, str)
             yield clean({
                 "actor": api.get_or_add_actor(name, url, email, orcid),
                 "role": { 
@@ -272,7 +273,12 @@ def get_actors(api: MarketPlaceAPI, g: Graph, res: URIRef, prop=SDO.author, offs
                 }
             })
 
-
+def value(g: Graph, s: Literal | URIRef, p: URIRef) -> str | None:
+    v = g.value(s, p,None)
+    if v is None:
+        return None
+    else:
+        return str(v)
 
 def main():
     parser = argparse.ArgumentParser(prog="codemeta2mp", description="Converts codemeta to SSHOC Open Marketplace") 
@@ -565,7 +571,9 @@ def main():
 
             entry = { k:v for k, v in entry.items() if v }
 
-            existing = api.get_tool(g.value(res, SDO.name, None))
+            name = value(g, res, SDO.name)
+            assert isinstance(name,str)
+            existing = api.get_tool(name)
             if existing:
                 persistent_id = existing['persistentId']
                 lastupdate_mp = existing['lastInfoUpdate']
