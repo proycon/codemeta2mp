@@ -335,7 +335,7 @@ def main():
     parser.add_argument('--password', help="Password", type=str, required=False) 
     parser.add_argument('--token', help="Token secret", type=str, required=False) 
     parser.add_argument('--sourcelabel', help="Source label", type=str, default="CLARIAH-NL Tools") 
-    parser.add_argument('--sourceurl', help="Source URL", type=str, default="https://tools.clariah.nl") 
+    parser.add_argument('--sourceurl', help="Source URL without trailing slash", type=str, default="https://tools.clariah.nl") 
     parser.add_argument('--sourcetemplate', help="Source URL Template", type=str, default="https://tools.clariah.nl/{source-item-id}") 
     parser.add_argument('--debug',help="Debug mode", action="store_true")
     parser.add_argument('inputfiles', nargs='+', help="Input files (JSON-LD)", type=str) 
@@ -355,6 +355,9 @@ def main():
             actors = list(get_actors(api, g, res, SDO.maintainer))
             actors += list(get_actors(api, g, res, SDO.author, len(actors)))
             properties = []
+
+            # Convert license information
+            license_found = None
             for _,_, license in g.triples((res, SDO.license, None)):
                 if str(license).startswith(("http://spdx.org", "https://spdx.org")):
                     code = str(license).strip("/").split("/")[-1]
@@ -377,6 +380,9 @@ def main():
                     },
                     "concept": licensedata
                 })
+                license_found = licensedata
+
+            # Convert category information
             for _,_, category in g.triples((res, SDO.applicationCategory, None)):
                 if str(category).startswith("https://vocabs.dariah.eu/tadirah/"):
                     properties.append({
@@ -391,16 +397,18 @@ def main():
                             "uri": str(category),
                         }
                     })
+
+            # Associate external IDs
             external_ids = []
             external_id = str(res)
-            if external_id.startswith("https://tools.clariah.nl/"):
+            if external_id.startswith(args.sourceurl + "/"):
                 external_ids.append({
                     "identifierService": {
                         "code": "CLARIAH-NL",
                         "label": "CLARIAH Tools",
-                        "urlTemplate": "https://tools.clariah.nl/{source-item-id}",
+                        "urlTemplate": args.sourcetemplate,
                     },
-                    "identifier": external_id.replace("https://tools.clariah.nl/","")
+                    "identifier": external_id.replace(args.sourceurl + "/","")
                 })
             else:
                 external_ids.append(external_id)
@@ -416,10 +424,14 @@ def main():
                 })
 
             accessible_at = []
+
+            # Set mode-of-use
             modes_of_use = set()
+            has_targetproduct_url = False
             for _,_,targetproduct in g.triples((res,CODEMETA.isSourceCodeOf,None)):
                 url = g.value(targetproduct,SDO.url,None)
                 if url:
+                    has_targetproduct_url = True
                     accessible_at.append(str(url))
                 for _,_,interfacetype in g.triples((targetproduct, RDF.type,None)):
                     if str(interfacetype).startswith(NS_INVOCATION_TYPE):
@@ -444,6 +456,45 @@ def main():
                         }
                     }
                 )
+
+            if license_found and not has_targetproduct_url:
+                # add some default terms of use for open source software that are not services
+                # we don't do this for services since the terms for the Service may differ from that
+                # from the source code
+                properties.append(
+                    {
+                        "type": {
+                            "code": "terms-of-use"
+                        },
+                        "value": "Open Source"
+                    }
+                )
+                properties.append(
+                    {
+                        "type": {
+                            "code": "terms-of-use"
+                        },
+                        "value": str(license_found['label']),                    
+                    }
+                )
+                properties.append(
+                    {
+                        "type": {
+                            "code": "terms-of-use-url"
+                        },
+                        "value": str(license_found['uri']),                    
+                    }
+                )
+                properties.append(
+                    {
+                        "type": {
+                            "code": "terms-of-use"
+                        },
+                        "value": "Free"
+                    }
+                )
+
+            # Set lifecycle status and TRL
             lifecycle_status = None
             trl = None
             for _,_,devstatus in g.triples((res,CODEMETA.developmentStatus,None)):
@@ -474,7 +525,7 @@ def main():
                         "concept": {
                             "code": str(lifecycle_status).split("/")[-1],
                             "vocabulary": {
-                                "code": "life-cycle-status" #MAYBE TODO: verify?
+                                "code": "life-cycle-status"
                             },
                             "uri": str(lifecycle_status)
                         }
@@ -489,13 +540,14 @@ def main():
                         "concept": {
                             "code": trl.split("/")[-1],
                             "vocabulary": {
-                                "code": "technology-readiness-level" #MAYBE TODO: verify? 
+                                "code": "technology-readiness-level"
                             },
                             "uri": trl
                         }
                     }
                 )
 
+            # Convert keywords
             for _,_,keyword in g.triples((res,SDO.keywords,None)):
                 if isinstance(keyword, Literal):
                     concept = api.get_or_add_keyword(str(keyword))
@@ -511,6 +563,7 @@ def main():
                         }
                     )
 
+            # Set source repository
             sourcerepo = g.value(res,SDO.codeRepository,None)
             if sourcerepo:
                 if not accessible_at:
@@ -561,6 +614,7 @@ def main():
                         "identifier": str(sourcerepo).replace("https://git.sr.ht/","")
                     })
 
+            # Set version
             if g.value(res, SDO.version, None):
                 properties.append(
                     {
@@ -572,6 +626,7 @@ def main():
                     }
                 )
 
+            # Set documentation
             for _,_,o in g.triples((res, SDO.softwareHelp,None)): 
                 url = None
                 if isinstance(o, Literal) and str(o).startswith("http"):
@@ -588,6 +643,25 @@ def main():
                             "concept": EMPTY_PROPERTY_CONCEPT,
                         }
                     )
+
+            # Set issue trackers
+            for _,_,o in g.triples((res, CODEMETA.issueTracker,None)): 
+                url = None
+                if isinstance(o, Literal) and str(o).startswith("http"):
+                    url = str(o)
+                elif isinstance(g.value(o,SDO.url,None), Literal):
+                    url = str(g.value(o,SDO.url,None))
+                if url:
+                    properties.append(
+                        {
+                            "type": {
+                                "code": "helpdesk-url"
+                            },
+                            "value": url,
+                            "concept": EMPTY_PROPERTY_CONCEPT,
+                        }
+                    )
+
 
             #a bit of a crude search for possible languages (should usually occur in a consumesData,producesData context)
             languages = set()
