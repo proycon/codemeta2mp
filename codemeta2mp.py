@@ -198,7 +198,12 @@ class MarketPlaceAPI:
         self.validate_response(response, None, "get_keyword")
         if response.json()['hits'] == 0:
             raise KeyError()
-        return response.json()['concepts'][0] #returns the first match! (may not be what you want if there are multiple)
+        concept = response.json()['concepts'][0]
+        code = keyword.strip().lower().replace(' ','-')
+        if concept['code'] == code or concept['label'].strip().lower() == keyword.strip().lower():
+            #require exact match
+            return concept
+        raise KeyError
 
     def add_keyword(self, keyword: str) -> dict:
         """Adds a keyword"""
@@ -207,7 +212,7 @@ class MarketPlaceAPI:
             "code": code,
             "label": keyword, 
         }
-        response = requests.post(f"{self.baseurl}/api/vocabularies/sshoc-keywords/concepts", headers=self.headers(), json=payload)
+        response = requests.post(f"{self.baseurl}/api/vocabularies/sshoc-keyword/concepts", headers=self.headers(), json=payload)
         self.validate_response(response,payload,"add_keyword")
         return response.json()
 
@@ -492,19 +497,16 @@ def main():
 
             for _,_,keyword in g.triples((res,SDO.keywords,None)):
                 if isinstance(keyword, Literal):
+                    concept = api.get_or_add_keyword(str(keyword))
+                    if 'vocabulary' not in concept:
+                        concept['vocabulary'] = { "code": "sshoc-keyword" }
                     properties.append(
                         {
                             "type": {
                                 "code": "keyword"
                             },
-                            "concept": {
-                                "code": str(keyword.strip().lower().replace(" ","+")),
-                                "label": str(keyword.strip()),
-                                "vocabulary": {
-                                    "code": "sshoc-keyword",
-                                }
-                            },
-                            #"value": str(keyword.strip()),
+                            "concept": concept,
+                            "value": str(keyword.strip()),
                         }
                     )
 
