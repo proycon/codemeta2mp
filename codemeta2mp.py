@@ -339,6 +339,7 @@ def main():
     parser.add_argument('--sourceurl', help="Source URL without trailing slash", type=str, default="https://tools.clariah.nl") 
     parser.add_argument('--sourcetemplate', help="Source URL Template", type=str, default="https://tools.clariah.nl/{source-item-id}") 
     parser.add_argument('--debug',help="Debug mode", action="store_true")
+    parser.add_argument('--force',help="Force update even if entries seem up to date", action="store_true")
     parser.add_argument('inputfiles', nargs='+', help="Input files (JSON-LD)", type=str) 
 
     args = parser.parse_args()
@@ -719,7 +720,7 @@ def main():
                 if lastmodified_upstream:
                     if lastmodified_upstream > lastupdate_mp: #lexographic comparison should work
                         needs_update = True
-                if needs_update:
+                if needs_update or args.force:
                     print(f"--- Tool {name} exists but update is needed ---",file=sys.stderr)
                     api.update_tool(persistent_id, entry)
                 else:
