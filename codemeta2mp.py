@@ -198,11 +198,11 @@ class MarketPlaceAPI:
         self.validate_response(response, None, "get_keyword")
         if response.json()['hits'] == 0:
             raise KeyError()
-        concept = response.json()['concepts'][0]
         code = keyword.strip().lower().replace(' ','-')
-        if concept['code'] == code or concept['label'].strip().lower() == keyword.strip().lower():
-            #require exact match
-            return concept
+        for concept in response.json()['concepts']:
+            if concept['code'] == code or concept['label'].strip().lower() == keyword.strip().lower():
+                #require exact match
+                return concept
         raise KeyError
 
     def add_keyword(self, keyword: str) -> dict:
@@ -236,10 +236,11 @@ class MarketPlaceAPI:
         self.validate_response(response,None,"get_tool")
         if response.json()['hits'] == 0:
             return None
-        elif response.json()['hits'] > 1:
-            #multiple hits, refuse
-            return None
-        return response.json()['items'][0] #grab first match, this may not be accurate
+        for tool in response.json()['items']:
+            if tool['label'].strip().lower() == sourcelabel.strip().lower():
+                #require exact match
+                return tool
+        return None
 
     def add_tool(self, data: dict):
         """Adds a tool, given a full data object"""
