@@ -237,7 +237,7 @@ class MarketPlaceAPI:
         if response.json()['hits'] == 0:
             return None
         for tool in response.json()['items']:
-            if tool['label'].strip().lower() == sourcelabel.strip().lower():
+            if tool['label'].strip().lower() == name.strip().lower():
                 #require exact match
                 return tool
         return None
@@ -334,6 +334,7 @@ def main():
     parser.add_argument('--username', help="Username", type=str, required=False) 
     parser.add_argument('--password', help="Password", type=str, required=False) 
     parser.add_argument('--token', help="Token secret", type=str, required=False) 
+    parser.add_argument('--sourceid', help="Source ID", type=str, default="CLARIAH-NL") 
     parser.add_argument('--sourcelabel', help="Source label", type=str, default="CLARIAH-NL Tools") 
     parser.add_argument('--sourceurl', help="Source URL without trailing slash", type=str, default="https://tools.clariah.nl") 
     parser.add_argument('--sourcetemplate', help="Source URL Template", type=str, default="https://tools.clariah.nl/{source-item-id}") 
@@ -404,8 +405,8 @@ def main():
             if external_id.startswith(args.sourceurl + "/"):
                 external_ids.append({
                     "identifierService": {
-                        "code": "CLARIAH-NL",
-                        "label": "CLARIAH Tools",
+                        "code": args.sourceid,
+                        "label": args.sourcelabel,
                         "urlTemplate": args.sourcetemplate,
                     },
                     "identifier": external_id.replace(args.sourceurl + "/","")
@@ -719,10 +720,12 @@ def main():
                     if lastmodified_upstream > lastupdate_mp: #lexographic comparison should work
                         needs_update = True
                 if needs_update:
+                    print(f"--- Tool {name} exists but update is needed ---",file=sys.stderr)
                     api.update_tool(persistent_id, entry)
                 else:
-                    print("Already exists and no update needed",file=sys.stderr)
+                    print(f"--- Tool {name} already exists and no update is needed ---",file=sys.stderr)
             else:
+                print(f"--- Tool {name} is new ---",file=sys.stderr)
                 api.add_tool(entry)
 
             #json.dump(entry, sys.stdout)
