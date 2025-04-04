@@ -249,8 +249,9 @@ class MarketPlaceAPI:
 
     def update_tool(self, persistent_id: str, data: dict):
         """Updates an existing tool, given a full data object"""
-        response = requests.post(f"{self.baseurl}/api/tools-services/" + persistent_id, headers=self.headers(), json=data)
-        self.validate_response(response, data, "update_tool")
+        assert persistent_id
+        response = requests.put(f"{self.baseurl}/api/tools-services/" + persistent_id, headers=self.headers(), json=data)
+        self.validate_response(response, data, f"update_tool ({persistent_id})")
 
     def validate_response(self, response: requests.Response, data: Union[dict,None], context: str):
         """Internal helper method to validate responses and raise errors if needed"""
@@ -271,6 +272,12 @@ class MarketPlaceAPI:
 def clean(d: dict) -> dict:
    """Removes keys/values with empty values"""
    return { k: v for k,v in d.items() if v }
+
+def remove_empty_concepts(d: dict):
+    """Removes empty concepts (in-place)"""
+    for prop in d['properties']:
+        if 'concept' in prop and prop['concept'] == EMPTY_PROPERTY_CONCEPT:
+            del prop['concept']
 
 def get_actors(api: MarketPlaceAPI, g: Graph, res: URIRef, prop=SDO.author, offset=0):
     if prop == SDO.author:
@@ -722,6 +729,7 @@ def main():
                         needs_update = True
                 if needs_update or args.force:
                     print(f"--- Tool {name} exists but update is needed ---",file=sys.stderr)
+                    remove_empty_concepts(entry)
                     api.update_tool(persistent_id, entry)
                 else:
                     print(f"--- Tool {name} already exists and no update is needed ---",file=sys.stderr)
