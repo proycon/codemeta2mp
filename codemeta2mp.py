@@ -728,9 +728,8 @@ def main():
 
             name = value(g, res, SDO.name)
             entry = clean(entry)
-            for key in ('description','label'):
-                if key not in entry:
-                    print(f"--- Tool {name} has no {key}, marketplace won't accept it, skipping  ---",file=sys.stderr)
+            if any(not entry.get(key,None) for key in ('description','label')):
+                print(f"--- Tool {name} has no description or label, marketplace won't accept it, skipping  ---",file=sys.stderr)
                 continue
 
 
