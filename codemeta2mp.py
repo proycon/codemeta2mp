@@ -345,6 +345,7 @@ def main():
     parser.add_argument('--sourcelabel', help="Source label", type=str, default="CLARIAH-NL Tools") 
     parser.add_argument('--sourceurl', help="Source URL without trailing slash", type=str, default="https://tools.clariah.nl") 
     parser.add_argument('--sourcetemplate', help="Source URL Template", type=str, default="https://tools.clariah.nl/{source-item-id}") 
+    parser.add_argument('--minrating', type=int, help="Minimal rating for tools to be propagated to the marketplace", default=3) 
     parser.add_argument('--debug',help="Debug mode", action="store_true")
     parser.add_argument('--force',help="Force update even if entries seem up to date", action="store_true")
     parser.add_argument('--ignore',help="Ignore entries that can't be converted", action="store_true")
@@ -362,6 +363,18 @@ def main():
 
         for res,_,_ in g.triples((None,RDF.type, SDO.SoftwareSourceCode)):
             assert isinstance(res, URIRef)
+
+            if args.minrating:
+                passrating = False
+                for _,_, review in g.triples((res, SDO.review, None)):
+                    rating = g.value(review, SDO.reviewRating)
+                    if rating >= args.minrating:
+                        passrating = True
+                if not passrating:
+                    name = value(g, res, SDO.name)
+                    print(f"--- Tool {name} does not pass rating threshold, skipping  ---",file=sys.stderr)
+                    continue
+
             actors = list(get_actors(api, g, res, SDO.maintainer))
             actors += list(get_actors(api, g, res, SDO.author, len(actors)))
             properties = []
