@@ -347,6 +347,7 @@ def main():
     parser.add_argument('--sourcetemplate', help="Source URL Template", type=str, default="https://tools.clariah.nl/{source-item-id}") 
     parser.add_argument('--debug',help="Debug mode", action="store_true")
     parser.add_argument('--force',help="Force update even if entries seem up to date", action="store_true")
+    parser.add_argument('--ignore',help="Ignore entries that can't be converted", action="store_true")
     parser.add_argument('inputfiles', nargs='+', help="Input files (JSON-LD)", type=str) 
 
     args = parser.parse_args()
@@ -370,15 +371,26 @@ def main():
             for _,_, license in g.triples((res, SDO.license, None)):
                 if str(license).startswith(("http://spdx.org", "https://spdx.org")):
                     code = str(license).strip("/").split("/")[-1]
+                    if code.endswith(('.html','.htm','.php','.txt','.md')):
+                        code = ".".join(code.split('.')[:-1])
                 else:
                     #not SPDX? try to convert on the fly
                     license = license_to_spdx(str(license))
                     if str(license).startswith(("http://spdx.org", "https://spdx.org")):
                         code = str(license).strip("/").split("/")[-1]
+                        if code.endswith(('.html','.htm','.php','.txt','.md')):
+                            code = ".".join(code.split('.')[:-1])
                     else:
                         print(f"WARNING: Not an SPDX license {res}: {license} .. skipping...", file=sys.stderr)
                         continue
-                licensedata = api.get_license(code) #all spdx licenses are already in the marketplace database, we're not inserting new ones
+                try:
+                    licensedata = api.get_license(code) #all spdx licenses are already in the marketplace database, we're not inserting new ones
+                except KeyError as e:
+                    if args.ignore:
+                        continue
+                    else:
+                        print("WARNING: Unknown licence (can't map, skipping entire tool!):", code,file=sys.stderr)
+                        raise e
                 if 'types' in licensedata:
                     del licensedata['types']
                 if 'candidate' in licensedata:
@@ -714,9 +726,14 @@ def main():
                 "properties": properties,
             }
 
-            entry = clean(entry)
-
             name = value(g, res, SDO.name)
+            entry = clean(entry)
+            for key in ('description','label'):
+                if key not in entry:
+                    print(f"--- Tool {name} has no {key}, marketplace won't accept it, skipping  ---",file=sys.stderr)
+                continue
+
+
             assert isinstance(name,str)
             existing = api.get_tool(name)
             if existing:
