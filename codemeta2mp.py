@@ -350,6 +350,7 @@ def main():
     parser.add_argument('--force',help="Force update even if entries seem up to date", action="store_true")
     parser.add_argument('--ignore',help="Ignore entries that can't be converted", action="store_true")
     parser.add_argument('--keywords', help="Add these keywords (comma separated) to all entries", type=str, default="clariah,DARIAH Resource")
+    parser.add_argument('--reviewer', help="Add this actor with role review all entries", type=str, default="CLARIAH-NL")
     parser.add_argument('inputfiles', nargs='+', help="Input files (JSON-LD)", type=str) 
 
     args = parser.parse_args()
@@ -357,6 +358,11 @@ def main():
 
     api = MarketPlaceAPI(args.baseurl, args.username, args.password, args.token, args.debug) 
     source = api.get_or_add_source(args.sourcelabel, args.sourceurl, args.sourcetemplate)
+
+    if args.reviewer:
+        reviewer = api.get_or_add_actor(args.reviewer,None,None,None)
+    else:
+        reviewer = None
 
     for filename in args.inputfiles:
         g, _ = init_graph(attribs)
@@ -378,6 +384,15 @@ def main():
 
             actors = list(get_actors(api, g, res, SDO.maintainer))
             actors += list(get_actors(api, g, res, SDO.author, len(actors)))
+            if reviewer is not None:
+                actors.append({
+                    "actor": {
+                        "id": reviewer['id'],
+                    },
+                    "role": {
+                        "code": "reviewer"
+                    }
+                })
             properties = []
 
             # Convert license information
