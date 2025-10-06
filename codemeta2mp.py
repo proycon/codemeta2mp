@@ -250,7 +250,7 @@ class MarketPlaceAPI:
     def update_tool(self, persistent_id: str, data: dict):
         """Updates an existing tool, given a full data object"""
         assert persistent_id
-        response = requests.put(f"{self.baseurl}/api/tools-services/" + persistent_id, headers=self.headers(), json=data)
+        response = requests.patch(f"{self.baseurl}/api/tools-services/" + persistent_id, headers=self.headers(), json=data)
         self.validate_response(response, data, f"update_tool ({persistent_id})")
 
     def validate_response(self, response: requests.Response, data: Union[dict,None], context: str):
@@ -264,6 +264,11 @@ class MarketPlaceAPI:
                 print("ERROR FEEDBACK:",file=sys.stderr)
                 print(json.dumps(response.json(),indent=4), file=sys.stderr)
             response.raise_for_status()
+        elif isinstance(data, dict) and 'conflict-at-source':
+            if self.debug:
+                print(f"[DEBUG {context}]:", response.json(),file=sys.stderr)
+            print(f"-------- WARNING in {context} ---------",file=sys.stderr)
+            print(f"CONFLICT AT SOURCE: ", data['conflict-at-source'],file=sys.stderr)
         elif self.debug:
             print(f"[DEBUG {context}]:", response.json(),file=sys.stderr)
 
