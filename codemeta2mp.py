@@ -349,6 +349,7 @@ def main():
     parser.add_argument('--debug',help="Debug mode", action="store_true")
     parser.add_argument('--force',help="Force update even if entries seem up to date", action="store_true")
     parser.add_argument('--ignore',help="Ignore entries that can't be converted", action="store_true")
+    parser.add_argument('--keywords', help="Add these keywords (comma separated) to all entries", type=str, action="store_true", default="clariah,DARIAH Resource")
     parser.add_argument('inputfiles', nargs='+', help="Input files (JSON-LD)", type=str) 
 
     args = parser.parse_args()
@@ -580,6 +581,23 @@ def main():
                         }
                     }
                 )
+
+            # Add default keywords
+            if args.keywords:
+                for keyword in args.keywords.split(","):
+                    keyword = keyword.strip()
+                    concept = api.get_or_add_keyword(str(keyword))
+                    if 'vocabulary' not in concept:
+                        concept['vocabulary'] = { "code": "sshoc-keyword" }
+                    properties.append(
+                        {
+                            "type": {
+                                "code": "keyword"
+                            },
+                            "concept": concept,
+                            "value": str(keyword.strip()),
+                        }
+                    )
 
             # Convert keywords
             for _,_,keyword in g.triples((res,SDO.keywords,None)):
