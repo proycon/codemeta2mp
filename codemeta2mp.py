@@ -349,7 +349,7 @@ def main():
     parser.add_argument('--debug',help="Debug mode", action="store_true")
     parser.add_argument('--force',help="Force update even if entries seem up to date", action="store_true")
     parser.add_argument('--ignore',help="Ignore entries that can't be converted", action="store_true")
-    parser.add_argument('--keywords', help="Add these keywords (comma separated) to all entries", type=str, action="store_true", default="clariah,DARIAH Resource")
+    parser.add_argument('--keywords', help="Add these keywords (comma separated) to all entries", type=str, default="clariah,DARIAH Resource")
     parser.add_argument('inputfiles', nargs='+', help="Input files (JSON-LD)", type=str) 
 
     args = parser.parse_args()
