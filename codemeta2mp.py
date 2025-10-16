@@ -264,7 +264,7 @@ class MarketPlaceAPI:
                 print("ERROR FEEDBACK:",file=sys.stderr)
                 print(json.dumps(response.json(),indent=4), file=sys.stderr)
             response.raise_for_status()
-        elif isinstance(data, dict) and 'conflict-at-source':
+        elif isinstance(data, dict) and 'conflict-at-source' in data:
             if self.debug:
                 print(f"[DEBUG {context}]:", response.json(),file=sys.stderr)
             print(f"-------- WARNING in {context} ---------",file=sys.stderr)
