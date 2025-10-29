@@ -4,6 +4,7 @@ import sys
 import argparse
 import json
 import requests
+import re
 from typing import Optional, Union
 from rdflib import Graph, URIRef,Literal, OWL, RDF
 from codemeta.common import getstream, init_graph, AttribDict, SDO, CODEMETA, REPOSTATUS, SOFTWARETYPES, TRL,  iter_ordered_list, get_doi, license_to_spdx
@@ -183,7 +184,7 @@ class MarketPlaceAPI:
         except requests.exceptions.JSONDecodeError:
             raise
 
-    def get_or_add_keyword(self, keyword: str) -> dict:
+    def get_or_add_keyword(self, keyword: str) -> Optional[dict]:
         """Gets a keyword, or adds it if it doesn't exist yet"""
         try:
             return self.get_keyword(keyword)
@@ -198,19 +199,22 @@ class MarketPlaceAPI:
         self.validate_response(response, None, "get_keyword")
         if response.json()['hits'] == 0:
             raise KeyError()
-        code = keyword.strip().lower().replace(' ','-')
+        code, label = normalize_keyword(keyword)
         for concept in response.json()['concepts']:
-            if concept['code'] == code or concept['label'].strip().lower() == keyword.strip().lower():
+            if concept['code'] == code or concept['label'].strip().lower() == label.lower():
                 #require exact match
                 return concept
         raise KeyError
 
-    def add_keyword(self, keyword: str) -> dict:
+    def add_keyword(self, keyword: str) -> Optional[dict]:
         """Adds a keyword"""
-        code = keyword.strip().lower().replace(' ','-')
+        code, label = normalize_keyword(keyword)
+        if label.count(' ') > 1:
+            #we don't add keywords with more than two words
+            return None
         payload = {
             "code": code,
-            "label": keyword, 
+            "label": label, 
         }
         response = requests.post(f"{self.baseurl}/api/vocabularies/sshoc-keyword/concepts", headers=self.headers(), json=payload)
         self.validate_response(response,payload,"add_keyword")
@@ -272,7 +276,14 @@ class MarketPlaceAPI:
         elif self.debug:
             print(f"[DEBUG {context}]:", response.json(),file=sys.stderr)
 
-        
+def normalize_keyword(keyword: str) -> tuple[str, str]:
+    """Returns a normalized code and label for a keyword"""
+    keyword = keyword.strip()
+    keyword = re.sub(r'\s+', ' ', keyword)
+    keyword = re.sub(r'[^\P{P}-]+', '-', keyword) #all punctuation becomes a hyphen
+    code = keyword.lower().replace(' ','-') #the ID code uses hyphens instead of spaces and is all lowercase
+    label = keyword
+    return (code, label)
 
 def clean(d: dict) -> dict:
    """Removes keys/values with empty values"""
@@ -607,6 +618,8 @@ def main():
                 for keyword in args.keywords.split(","):
                     keyword = keyword.strip()
                     concept = api.get_or_add_keyword(str(keyword))
+                    if concept is None:
+                        continue
                     if 'vocabulary' not in concept:
                         concept['vocabulary'] = { "code": "sshoc-keyword" }
                     properties.append(
@@ -623,6 +636,8 @@ def main():
             for _,_,keyword in g.triples((res,SDO.keywords,None)):
                 if isinstance(keyword, Literal):
                     concept = api.get_or_add_keyword(str(keyword))
+                    if concept is None:
+                        continue
                     if 'vocabulary' not in concept:
                         concept['vocabulary'] = { "code": "sshoc-keyword" }
                     properties.append(
