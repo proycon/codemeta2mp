@@ -218,6 +218,7 @@ class MarketPlaceAPI:
         }
         response = requests.post(f"{self.baseurl}/api/vocabularies/sshoc-keyword/concepts", headers=self.headers(), json=payload)
         self.validate_response(response,payload,"add_keyword")
+        print(f"Added new keyword: {code} ({label})", file=sys.stderr)
         return response.json()
 
     def get_license(self, code: str) -> dict:
