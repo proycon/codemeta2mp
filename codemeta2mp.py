@@ -281,7 +281,7 @@ def normalize_keyword(keyword: str) -> tuple[str, str]:
     """Returns a normalized code and label for a keyword"""
     keyword = keyword.strip()
     keyword = re.sub(r'\s+', ' ', keyword)
-    keyword = re.sub(r'[^\P{P}-]+', '-', keyword) #all punctuation becomes a hyphen
+    keyword = re.sub(r'[^\w ]+', '-', re.sub('_+','-', keyword)) #all punctuation becomes a hyphen
     code = keyword.lower().replace(' ','-') #the ID code uses hyphens instead of spaces and is all lowercase
     label = keyword
     return (code, label)
