@@ -419,7 +419,7 @@ def main():
             new_actors = []
             for actor in actors:
                 if actor not in new_actors:
-                    new_actors.append(actors)
+                    new_actors.append(actor)
             actors = new_actors
 
             properties = []
