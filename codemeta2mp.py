@@ -392,7 +392,7 @@ def main():
                 passrating = False
                 for _,_, review in g.triples((res, SDO.review, None)):
                     rating = g.value(review, SDO.reviewRating)
-                    if rating >= args.minrating:
+                    if rating is not None and int(rating) >= args.minrating:
                         passrating = True
                 if not passrating:
                     name = value(g, res, SDO.name)
