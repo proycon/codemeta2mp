@@ -312,7 +312,13 @@ def get_actors(api: MarketPlaceAPI, g: Graph, res: URIRef, prop=SDO.author, offs
     else:
         raise Exception("Unknown property: " + str(prop))
 
-    for i,(_,_,o) in enumerate(iter_ordered_list(g,res,prop)):
+    #remove any duplicates
+    l = []
+    for x in iter_ordered_list(g,res,prop):
+        if x not in l:
+            l.append(x)
+
+    for i,(_,_,o) in enumerate(l):
         if isinstance(o, Literal):
             yield clean({
                 "actor": api.get_or_add_actor(str(o),None,None,None),
@@ -404,7 +410,15 @@ def main():
                     continue
 
             actors = list(get_actors(api, g, res, SDO.maintainer))
-            actors += list(get_actors(api, g, res, SDO.author, len(actors)))
+            for actor in get_actors(api, g, res, SDO.author, len(actors)):
+                duplicate = False
+                for x in actors:
+                    if actor['actor']['name'] == x['actor']['name']:
+                        duplicate = True
+                        break
+                if not duplicate:
+                    actors.append(actor)
+                
             if reviewer is not None:
                 actors.append({
                     "actor": {
@@ -414,13 +428,6 @@ def main():
                         "code": "reviewer"
                     }
                 })
-
-            #ensure there are no duplicates
-            new_actors = []
-            for actor in actors:
-                if actor not in new_actors:
-                    new_actors.append(actor)
-            actors = new_actors
 
             properties = []
 
