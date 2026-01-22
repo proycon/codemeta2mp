@@ -164,6 +164,8 @@ class MarketPlaceAPI:
                 },
                 "identifier": orcid.replace("https://orcid.org/","")
             })
+        if isinstance(email, str) and email.startswith("mailto:"):
+            email = email[7:]
         payload = {
             "name": name,
             "externalIds": external_ids,
@@ -195,11 +197,11 @@ class MarketPlaceAPI:
 
     def get_keyword(self, keyword: str) -> dict:
         """Gets a keyword. Raises KeyError when not found"""
-        response = requests.get(f"{self.baseurl}/api/concept-search", params={"q": keyword.strip(), "types": "keyword" },headers=self.headers())
+        code, label = normalize_keyword(keyword)
+        response = requests.get(f"{self.baseurl}/api/concept-search", params={"q": label.strip(), "types": "keyword" },headers=self.headers())
         self.validate_response(response, None, "get_keyword")
         if response.json()['hits'] == 0:
             raise KeyError()
-        code, label = normalize_keyword(keyword)
         for concept in response.json()['concepts']:
             if concept['code'] == code or concept['label'].strip().lower() == label.lower():
                 #require exact match
