@@ -414,8 +414,14 @@ def main():
                         "code": "reviewer"
                     }
                 })
+
             #ensure there are no duplicates
-            actors = list(dict.fromkeys(actors))
+            new_actors = []
+            for actor in actors:
+                if actor not in new_actors:
+                    new_actors.append(actors)
+            actors = new_actors
+
             properties = []
 
             # Convert license information
