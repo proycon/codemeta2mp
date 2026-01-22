@@ -5,6 +5,7 @@ import argparse
 import json
 import requests
 import re
+import time
 from typing import Optional, Union
 from rdflib import Graph, URIRef,Literal, OWL, RDF
 from codemeta.common import getstream, init_graph, AttribDict, SDO, CODEMETA, REPOSTATUS, SOFTWARETYPES, TRL,  iter_ordered_list, get_doi, license_to_spdx
@@ -370,6 +371,7 @@ def main():
     parser.add_argument('--ignore',help="Ignore entries that can't be converted", action="store_true")
     parser.add_argument('--keywords', help="Add these keywords (comma separated) to all entries", type=str, default="clariah,DARIAH Resource")
     parser.add_argument('--reviewer', help="Add this actor with role reviewer to all entries", type=str, default="CLARIAH-NL")
+    parser.add_argument('--pause', help="Pause this many seconds between tools (may help with rate limiting)", type=int, default=0)
     parser.add_argument('inputfiles', nargs='+', help="Input files (JSON-LD)", type=str) 
 
     args = parser.parse_args()
@@ -412,6 +414,8 @@ def main():
                         "code": "reviewer"
                     }
                 })
+            #ensure there are no duplicates
+            actors = list(dict.fromkeys(actors))
             properties = []
 
             # Convert license information
@@ -821,7 +825,8 @@ def main():
             else:
                 print(f"--- Tool {name} is new ---",file=sys.stderr)
                 api.add_tool(entry)
-
+            if args.pause:
+                time.sleep(args.pause)
             #json.dump(entry, sys.stdout)
 
 if __name__ == "__main__":
