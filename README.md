@@ -1,4 +1,5 @@
-[![Project Status: WIP – Initial development is in progress, but there has not yet been a stable, usable release suitable for the public.](https://www.repostatus.org/badges/latest/wip.svg)](https://www.repostatus.org/#wip)
+[![Project Status: Active -- The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
+[![Latest release in the Python Package Index](https://img.shields.io/pypi/v/codemeta2mp)](https://pypi.org/project/codemeta2mp/)
 
 # Codemeta to SSHOC Open Marketplace
 
@@ -6,10 +7,10 @@ This is a converter to transform data from codemeta (as used by <https://tools.c
 
 ## Installation
 
-For now:
+Run (preferably in a Python virtual environment):
 
 ```
-pip install git+https://github.com/proycon/codemeta2mp.git
+pip install codemeta2mp
 ```
 
 ## Usage

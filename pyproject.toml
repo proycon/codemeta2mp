@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "codemeta2mp"
 description = "Converts codemeta to a representation for the SSHOC Open Marketplace"
-version = "0.2"
+version = "0.3"
 dependencies = [
     "codemetapy", "requests"
 ]
@@ -17,11 +17,11 @@ maintainers = [
 ]
 readme = "README.md"
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
 ]
-requires-python = ">= 3.7"
+requires-python = ">= 3.8"
 
 [project.urls]
 Repository = "https://github.com/proycon/codemeta2mp.git"
