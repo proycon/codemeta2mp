@@ -978,6 +978,9 @@ def main():
                 "properties": properties,
             }
 
+            if g.value(res, SDO.version, None):
+                entry["version"] = str(g.value(res, SDO.version, None))
+
             name = value(g, res, SDO.name)
             entry = clean(entry)
             if any(not entry.get(key, None) for key in ("description", "label")):
@@ -994,6 +997,11 @@ def main():
                 lastupdate_mp = existing["lastInfoUpdate"]
                 lastmodified_upstream = g.value(res, SDO.dateModified, None)
                 needs_update = False
+                if args.debug:
+                    print(
+                        f"timestamp upstream: {lastmodified_upstream}  timestamp marketplace: {lastupdate_mp}",
+                        file=sys.stderr,
+                    )
                 if lastmodified_upstream:
                     if (
                         lastmodified_upstream > lastupdate_mp
