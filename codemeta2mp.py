@@ -533,6 +533,12 @@ def main():
         type=int,
         default=0,
     )
+    parser.add_argument(
+        "--exclude",
+        help="Comma separated list tool names to skip and not add to the SSHOC Marketplace, despite passing the ranking",
+        type=str,
+        default="",
+    )
     parser.add_argument("inputfiles", nargs="+", help="Input files (JSON-LD)", type=str)
 
     args = parser.parse_args()
@@ -982,6 +988,12 @@ def main():
                 entry["version"] = str(g.value(res, SDO.version, None))
 
             name = value(g, res, SDO.name)
+            if name in args.exclude.split(","):
+                print(
+                    f"--- Tool {name} is in the exclude list and will be skipped ---",
+                    file=sys.stderr,
+                )
+                continue
             entry = clean(entry)
             if any(not entry.get(key, None) for key in ("description", "label")):
                 print(
