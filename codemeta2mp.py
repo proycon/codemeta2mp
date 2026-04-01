@@ -320,6 +320,7 @@ class MarketPlaceAPI:
             params={
                 "q": name.strip(),
                 "f": f"f.source={sourcelabel}",
+                "perpage": 100,
                 "categories": "tool-or-service",
             },
             headers={"accept": "application/json"},
