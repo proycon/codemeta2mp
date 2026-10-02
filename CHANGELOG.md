@@ -1,4 +1,4 @@
-# v0.3.2 - 2026-10-02
+# v0.4.0 - 2026-10-02
 
 This release contains an important bugfix.
 
