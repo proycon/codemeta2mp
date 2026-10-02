@@ -313,26 +313,39 @@ class MarketPlaceAPI:
         self.validate_response(response, None, "add_thumbnail")
         return response.json()
 
-    def get_tool(self, name: str, sourcelabel: str = "") -> Optional[dict]:
-        """Gets the data of tool if it exists"""
+    def get_conflicting_tool(self, name: str, source_id: int) -> Optional[dict]:
+        """Checks the marketplace for a potentially conflicting tool from another source than ours. This tool is never a PATCH target!!"""
         response = requests.get(
             f"{self.baseurl}/api/item-search",
             params={
                 "q": name.strip(),
-                "f": f"f.source={sourcelabel}",
                 "perpage": 100,
                 "categories": "tool-or-service",
             },
             headers={"accept": "application/json"},
         )
-        self.validate_response(response, None, "get_tool")
+        self.validate_response(response, None, "get_conflicting_tool")
         if response.json()["hits"] == 0:
             return None
         for tool in response.json()["items"]:
             if tool["label"].strip().lower() == name.strip().lower():
                 # require exact match
+                for source in tool['sources']:
+                    if source['id'] == source_id:
+                        #this is our own source, there is no conflict
+                        return None
                 return tool
         return None
+
+    def get_tool_by_source_item(self, source_id: int, source_item_id: str) -> Optional[dict]:
+        """Authoritative lookup of an existing item we already own in the marketplace, by source and source item id"""
+        response = requests.get(
+            f"{self.baseurl}/api/sources/{source_id}/items/{source_item_id}",
+            headers={"accept": "application/json"},
+        )
+        self.validate_response(response, None, "get_tool_by_source_item")
+        data = response.json()
+        return data["items"][0] if data["hits"] else None
 
     def add_tool(self, data: dict):
         """Adds a tool, given a full data object"""
@@ -539,6 +552,11 @@ def main():
         help="Comma separated list tool names to skip and not add to the SSHOC Marketplace, despite passing the ranking",
         type=str,
         default="",
+    )
+    parser.add_argument(
+        "--allow-duplicates",
+        help="Allow possibly conflicting/duplicate items to exist (may result in duplicates with items from other sources if ours is newer)",
+        type=bool,
     )
     parser.add_argument("inputfiles", nargs="+", help="Input files (JSON-LD)", type=str)
 
@@ -973,13 +991,16 @@ def main():
             else:
                 thumbnail_data = None
 
+            identifier = g.value(res, SDO.identifier, None)
+            assert identifier is not None
+
             entry = {
                 "label": g.value(res, SDO.name, None),
                 "description": g.value(res, SDO.description, None),
                 "externalID": external_ids,
                 "accessibleAt": accessible_at,
                 "source": source,
-                "sourceItemId": g.value(res, SDO.identifier, None),
+                "sourceItemId": identifier,
                 "thumbnail": thumbnail_data,
                 "contributors": actors,
                 "properties": properties,
@@ -991,20 +1012,20 @@ def main():
             name = value(g, res, SDO.name)
             if name in args.exclude.split(","):
                 print(
-                    f"--- Tool {name} is in the exclude list and will be skipped ---",
+                    f"--- Tool {identifier} ({name}) is in the exclude list and will be skipped ---",
                     file=sys.stderr,
                 )
                 continue
             entry = clean(entry)
             if any(not entry.get(key, None) for key in ("description", "label")):
                 print(
-                    f"--- Tool {name} has no description or label, marketplace won't accept it, skipping  ---",
+                    f"--- Tool {identifier} ({name}) has no description or label, marketplace won't accept it, skipping  ---",
                     file=sys.stderr,
                 )
                 continue
 
             assert isinstance(name, str)
-            existing = api.get_tool(name)
+            existing = api.get_tool_by_source_item(source['id'], entry['sourceItemId'])
             if existing:
                 persistent_id = existing["persistentId"]
                 lastupdate_mp = existing["lastInfoUpdate"]
@@ -1018,22 +1039,37 @@ def main():
                 if lastmodified_upstream:
                     if (
                         lastmodified_upstream > lastupdate_mp
-                    ):  # lexographic comparison should work
+                    ):  # lexicographic comparison should work
                         needs_update = True
                 if needs_update or args.force:
                     print(
-                        f"--- Tool {name} exists but update is needed ---",
+                        f"--- Tool {identifier} ({name}) exists but update is needed ---",
                         file=sys.stderr,
                     )
                     remove_empty_concepts(entry)
                     api.update_tool(persistent_id, entry)
                 else:
                     print(
-                        f"--- Tool {name} already exists and no update is needed ---",
+                        f"--- Tool {identifier} ({name}) already exists and no update is needed ---",
                         file=sys.stderr,
                     )
             else:
-                print(f"--- Tool {name} is new ---", file=sys.stderr)
+                conflicting = api.get_conflicting_tool(name, source['id'])
+                if conflicting:
+                    print(f"--- Tool {identifier} ({name}) is new but potentially conflicts with existing foreign entry {conflicting['persistentId']} ---", file=sys.stderr)
+                    if args.allow_duplicates:
+                        lastupdate_mp = conflicting["lastInfoUpdate"]
+                        lastmodified_upstream = g.value(res, SDO.dateModified, None)
+                        if lastmodified_upstream and lastmodified_upstream > lastupdate_mp: # lexicographic comparison should work
+                            print("WARNING: ours is newer so adding it anyway! This may result in a possible duplicate!", file=sys.stderr)
+                        else:
+                            print("skipping this item because ours is older than the existing one", file=sys.stderr)
+                            continue #.. to next tool
+                    else:
+                        print("WARNING: skipping this item to avoid duplicates!", file=sys.stderr)
+                        continue #.. to next tool
+                else:
+                    print(f"--- Tool {identifier} ({name}) is new ---", file=sys.stderr)
                 api.add_tool(entry)
             if args.pause:
                 time.sleep(args.pause)
